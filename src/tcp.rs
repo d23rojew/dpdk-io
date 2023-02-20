@@ -134,25 +134,25 @@ impl tokio::io::AsyncRead for TcpStream {
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
-        log::trace!("tcp poll try read");
+        // log::trace!("tcp poll try read");
         if self.can_read() == false {
             cx.waker().wake_by_ref();
             return Poll::Pending;
         }
-        log::trace!("tcp poll read");
+        // log::trace!("tcp poll read");
         if let Some(agent) = &self.read_agent {
             let result = agent.read(&self, buf.initialize_unfilled());
             match result {
                 Ok(len) => {
                     buf.advance(len);
-                    log::trace!("agent read = {}", String::from_utf8_lossy(buf.filled()));
+                    // log::trace!("agent read = {}", String::from_utf8_lossy(buf.filled()));
                     if len == 0 {
                         return Poll::Pending;
                     }
                     return Poll::Ready(Ok(()));
                 }
                 Err(err) => {
-                    log::trace!("agent read  err = {:?}", err.raw_os_error());
+                    // log::trace!("agent read  err = {:?}", err.raw_os_error());
                     if err.raw_os_error().unwrap() == 11 {
                         cx.waker().wake_by_ref();
                         return Poll::Pending;
@@ -203,12 +203,12 @@ pub fn new_for_addr(address: SocketAddr) -> io::Result<libc::c_int> {
         SocketAddr::V4(_) => libc::AF_INET,
         SocketAddr::V6(_) => libc::AF_INET6,
     };
-    println!("domain = {:?}", domain);
+    // println!("domain = {:?}", domain);
     let ret = unsafe { crate::fstack::ff_socket(domain, libc::SOCK_STREAM, libc::IPPROTO_TCP) };
     if ret < 0 {
         return Err(std::io::Error::last_os_error());
     }
-    println!("ret socket = {}", ret);
+    // println!("ret socket = {}", ret);
     return Ok(ret);
 }
 

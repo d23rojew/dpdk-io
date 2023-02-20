@@ -14,6 +14,15 @@ use std::os::fd::RawFd;
 use std::sync::Arc;
 
 static mut AGENT: Option<Arc<Agent>> = None;
+static mut DPDK_ARG: Vec<String> = vec![];
+
+pub fn set_dpdk_arg(arg: Vec<String>) {
+    unsafe {
+        for e in arg.into_iter() {
+            DPDK_ARG.push(e);
+        }
+    }
+}
 
 pub fn dpdk_agent() -> Arc<Agent> {
     unsafe {
@@ -548,7 +557,6 @@ unsafe extern "C" fn dpdk_loop(arg: *mut c_void) -> i32 {
     if nevents == 0 {
         (*arg).process_connect();
         (*arg).prorcess_listen();
-        // log::trace!("start to dpdk process accpet ");
         (*arg).process_accept();
         (*arg).process_read();
         (*arg).process_write();
@@ -634,8 +642,20 @@ pub fn bootstrap() {
 
     let (wait_prepare_done_sender, wait_prepare_done_receiver) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
-        let argv: Vec<String> = std::env::args().collect();
-        println!("argv = {:?}", argv);
+        let argv: Vec<String>;
+        if unsafe { DPDK_ARG.len() } == 0 {
+            argv = vec![
+                String::from("./app"),
+                String::from("--conf"),
+                String::from("config.ini"),
+                String::from("--proc-type=primary"),
+                String::from("--proc-id=0"),
+            ];
+        } else {
+            unsafe {
+                argv = DPDK_ARG.iter().map(|e| e.clone()).collect();
+            }
+        }
 
         let cstr_argv: Vec<_> = argv
             .iter()
@@ -643,7 +663,7 @@ pub fn bootstrap() {
             .collect();
 
         let p_argv: Vec<_> = cstr_argv
-            .iter() // do NOT into_iter()
+            .iter()
             .map(|arg| arg.as_ptr() as *mut c_char)
             .collect();
 
