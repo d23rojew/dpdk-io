@@ -84,8 +84,18 @@ pub struct Agent {
 }
 
 #[derive(Clone)]
+struct ReadSender(std::sync::mpsc::Sender<ReadArguementTuple>);
+unsafe impl Send for ReadSender {}
+unsafe impl Sync for ReadSender {}
+
+#[derive(Clone)]
+struct WriteSender(std::sync::mpsc::Sender<WriteArguementTuple>);
+unsafe impl Send for WriteSender {}
+unsafe impl Sync for WriteSender {}
+
+#[derive(Clone)]
 pub struct ReadAgent {
-    read_sender: std::sync::mpsc::Sender<ReadArguementTuple>,
+    read_sender: ReadSender,
 }
 
 impl ReadAgent {
@@ -98,14 +108,14 @@ impl ReadAgent {
             result_sender,
         );
         log::trace!("start to read tcp:{},", tcp_stream.as_raw_fd());
-        self.read_sender.send(arg).expect("send read cmd fail");
+        self.read_sender.0.send(arg).expect("send read cmd fail");
         return result_receive.recv().expect("receive read result");
     }
 }
 
 #[derive(Clone)]
 pub struct WriteAgent {
-    write_sender: std::sync::mpsc::Sender<WriteArguementTuple>,
+    write_sender: WriteSender,
 }
 
 impl WriteAgent {
@@ -122,7 +132,7 @@ impl WriteAgent {
             data.len(),
             result_sender,
         );
-        self.write_sender.send(arg).expect("send write cmd fail");
+        self.write_sender.0.send(arg).expect("send write cmd fail");
         log::trace!("send write cmd success");
         return result_receive.recv().expect("receive write result");
     }
@@ -628,15 +638,19 @@ pub fn bootstrap() {
         listen_sender,
         connect_sender,
         read_agent: ReadAgent {
-            read_sender: read_sender.clone(),
+            read_sender: ReadSender(read_sender.clone()),
         },
         write_agent: WriteAgent {
-            write_sender: write_sender.clone(),
+            write_sender: WriteSender(write_sender.clone()),
         },
         accept_agent: AcceptAgent {
             accept_sender,
-            write_agent: WriteAgent { write_sender },
-            read_agent: ReadAgent { read_sender },
+            write_agent: WriteAgent {
+                write_sender: WriteSender(write_sender),
+            },
+            read_agent: ReadAgent {
+                read_sender: ReadSender(read_sender),
+            },
         },
     };
 
