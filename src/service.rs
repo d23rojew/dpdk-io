@@ -640,6 +640,8 @@ pub fn bootstrap() {
         },
     };
 
+    unsafe { AGENT = Some(Arc::new(agent)) }
+
     let (wait_prepare_done_sender, wait_prepare_done_receiver) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let argv: Vec<String>;
@@ -705,6 +707,4 @@ pub fn bootstrap() {
     let _ = wait_prepare_done_receiver
         .recv()
         .expect("wait dpdk prepare done");
-
-    unsafe { AGENT = Some(Arc::new(agent)) }
 }
