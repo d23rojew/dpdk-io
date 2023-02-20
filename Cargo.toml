@@ -1,0 +1,44 @@
+[package]
+edition = "2021"
+name = "dpdk-io"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+env_logger = "0.10.0"
+futures = "0.3.26"
+futures-util = "0.3.26"
+libc = "0.2.121"
+log = "0.4.17"
+oneshot = "0.1.5"
+pin-project-lite = "0.2.0"
+tokio = {version = "1.25.0", features = ["full"]}
+
+[build-dependencies]
+bindgen = "0.55.1"
+pkg-config = "0.3.26"
+
+[dev-dependencies]
+
+tokio = {version = "1.25.0", features = ["full"]}
+
+[[example]]
+name = "async_sync"
+path = "examples/async_sync.rs"
+
+[[example]]
+name = "tokio_sleep"
+path = "examples/tokio_sleep.rs"
+
+[[example]]
+name = "tokio_loop"
+path = "examples/tokio_loop.rs"
+
+[[bin]]
+name = "tcp_server"
+path = "examples/tcp_server.rs"
+
+[[bin]]
+name = "tcp_client"
+path = "examples/tcp_client.rs"
