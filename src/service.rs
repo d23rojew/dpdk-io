@@ -12,6 +12,7 @@ use std::ffi::{c_char, CString};
 use std::net::SocketAddr;
 use std::os::fd::RawFd;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 static mut AGENT: Option<Arc<Agent>> = None;
 static mut DPDK_ARG: Vec<String> = vec![];
@@ -157,8 +158,8 @@ impl AcceptAgent {
         let r = result_receive.recv().expect("receive write result");
         if let Some((mut tcp_stream, addr)) = r {
             log::trace!("receive accept return {:?}", addr);
-            tcp_stream.set_write_agent(self.write_agent.clone());
-            tcp_stream.set_read_agent(self.read_agent.clone());
+            tcp_stream.set_write_agent(Mutex::new(self.write_agent.clone()));
+            tcp_stream.set_read_agent(Mutex::new(self.read_agent.clone()));
             log::trace!("end accpet cmd get tcp :{}", addr);
             return Ok(Some((tcp_stream, addr)));
         }
@@ -178,8 +179,8 @@ impl Agent {
             log::trace!("start to wait connect success ");
             tcp_stream.wait_connect_success().expect("wait success");
 
-            tcp_stream.set_read_agent(self.read_agent.clone());
-            tcp_stream.set_write_agent(self.write_agent.clone());
+            tcp_stream.set_read_agent(Mutex::new(self.read_agent.clone()));
+            tcp_stream.set_write_agent(Mutex::new(self.write_agent.clone()));
             return Ok(tcp_stream);
         }
 
@@ -206,8 +207,8 @@ impl Agent {
                 return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, err));
             }
 
-            tcp_stream.set_read_agent(self.read_agent.clone());
-            tcp_stream.set_write_agent(self.write_agent.clone());
+            tcp_stream.set_read_agent(Mutex::new(self.read_agent.clone()));
+            tcp_stream.set_write_agent(Mutex::new(self.write_agent.clone()));
             return Ok(tcp_stream);
         } else {
             return Err(std::io::Error::new(
@@ -343,7 +344,7 @@ impl Registry {
 
                     let (connect_sender, receiver) = std::sync::mpsc::channel();
 
-                    let stream = TcpStream::new(fd, receiver, socket);
+                    let stream = TcpStream::new(fd, Mutex::new(receiver), socket);
 
                     self.connect_wait.insert(fd, connect_sender);
 
@@ -405,7 +406,7 @@ impl Registry {
                 self.conn.insert(client_fd, socket.clone());
                 self.conn_belong_listener.insert(client_fd, listen_fd);
                 let (connect_sender, receiver) = std::sync::mpsc::channel();
-                let stream = TcpStream::new(client_fd, receiver, socket);
+                let stream = TcpStream::new(client_fd, Mutex::new(receiver), socket);
                 connect_sender.send(true).expect("send conn result");
                 c.send(Some((
                     stream,

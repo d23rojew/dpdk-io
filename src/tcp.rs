@@ -7,14 +7,15 @@ use std::os::fd::AsRawFd;
 use std::os::fd::RawFd;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::task::{Context, Poll};
 use tokio::io::ReadBuf;
 
 pub struct TcpStream {
     fd: i32,
-    read_agent: Option<crate::service::ReadAgent>,
-    write_agent: Option<crate::service::WriteAgent>,
-    connect_success: std::sync::mpsc::Receiver<bool>,
+    read_agent: Option<Mutex<crate::service::ReadAgent>>,
+    write_agent: Option<Mutex<crate::service::WriteAgent>>,
+    connect_success: Mutex<std::sync::mpsc::Receiver<bool>>,
     inner: Arc<std::sync::RwLock<Socket>>,
 }
 
@@ -60,7 +61,7 @@ impl TcpListener {
 impl TcpStream {
     pub fn new(
         fd: RawFd,
-        wait_success: std::sync::mpsc::Receiver<bool>,
+        wait_success: Mutex<std::sync::mpsc::Receiver<bool>>,
         inner: Arc<std::sync::RwLock<Socket>>,
     ) -> Self {
         Self {
@@ -103,16 +104,20 @@ impl TcpStream {
             .can_read()
     }
 
-    pub fn set_read_agent(&mut self, agent: crate::service::ReadAgent) {
+    pub fn set_read_agent(&mut self, agent: Mutex<crate::service::ReadAgent>) {
         self.read_agent = Some(agent);
     }
 
-    pub fn set_write_agent(&mut self, agent: crate::service::WriteAgent) {
+    pub fn set_write_agent(&mut self, agent: Mutex<crate::service::WriteAgent>) {
         self.write_agent = Some(agent);
     }
 
     pub fn wait_connect_success(&self) -> Result<(), crate::error::Error> {
-        self.connect_success.recv().expect("Wait connect success");
+        self.connect_success
+            .lock()
+            .unwrap()
+            .recv()
+            .expect("Wait connect success");
         Ok(())
     }
 
@@ -120,7 +125,7 @@ impl TcpStream {
         &self,
         timeout: std::time::Duration,
     ) -> Result<(), crate::error::Error> {
-        if let Err(err) = self.connect_success.recv_timeout(timeout) {
+        if let Err(err) = self.connect_success.lock().unwrap().recv_timeout(timeout) {
             return Err(crate::error::Error::Timeout(err.to_string()));
         }
 
@@ -141,7 +146,10 @@ impl tokio::io::AsyncRead for TcpStream {
         }
         // log::trace!("tcp poll read");
         if let Some(agent) = &self.read_agent {
-            let result = agent.read(&self, buf.initialize_unfilled());
+            let result = agent
+                .lock()
+                .expect("")
+                .read(&self, buf.initialize_unfilled());
             match result {
                 Ok(len) => {
                     buf.advance(len);
@@ -179,7 +187,7 @@ impl tokio::io::AsyncWrite for TcpStream {
             return Poll::Pending;
         }
         if let Some(agent) = &self.write_agent {
-            let result = agent.write(&self, buf);
+            let result = agent.lock().expect("write").write(&self, buf);
             match result {
                 Ok(len) => Poll::Ready(Ok(len)),
                 Err(err) => Poll::Ready(Err(err)),
