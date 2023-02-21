@@ -70,8 +70,8 @@ unsafe impl Sync for ReadArguementTuple {}
 
 const MAX_EVENTS: i32 = 1024;
 
+#[derive(Clone)]
 pub struct Agent {
-    connect_success: std::collections::BTreeMap<RawFd, std::sync::mpsc::Receiver<bool>>,
     listen_sender: std::sync::mpsc::Sender<(
         SocketAddr,
         oneshot::Sender<Result<TcpListener, std::io::Error>>,
@@ -631,7 +631,6 @@ pub fn bootstrap() {
     let (write_sender, write_receiver) = std::sync::mpsc::channel();
     let (accept_sender, accept_receiver) = std::sync::mpsc::channel();
     let agent = Agent {
-        connect_success: std::collections::BTreeMap::new(),
         listen_sender,
         connect_sender,
         read_agent: ReadAgent {
