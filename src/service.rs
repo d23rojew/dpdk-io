@@ -71,6 +71,7 @@ unsafe impl Sync for ReadArguementTuple {}
 const MAX_EVENTS: i32 = 1024;
 
 pub struct Agent {
+    connect_success: std::collections::BTreeMap<RawFd, std::sync::mpsc::Receiver<bool>>,
     listen_sender: std::sync::mpsc::Sender<(
         SocketAddr,
         oneshot::Sender<Result<TcpListener, std::io::Error>>,
@@ -143,8 +144,6 @@ impl WriteAgent {
 pub struct AcceptAgent {
     accept_sender:
         std::sync::mpsc::Sender<(RawFd, oneshot::Sender<Option<(TcpStream, SocketAddr)>>)>,
-    read_agent: ReadAgent,
-    write_agent: WriteAgent,
 }
 
 impl AcceptAgent {
@@ -156,10 +155,7 @@ impl AcceptAgent {
             .expect("send accpet cmd");
         // log::trace!("send accept cmd done");
         let r = result_receive.recv().expect("receive write result");
-        if let Some((mut tcp_stream, addr)) = r {
-            log::trace!("receive accept return {:?}", addr);
-            tcp_stream.set_write_agent(Mutex::new(self.write_agent.clone()));
-            tcp_stream.set_read_agent(Mutex::new(self.read_agent.clone()));
+        if let Some((tcp_stream, addr)) = r {
             log::trace!("end accpet cmd get tcp :{}", addr);
             return Ok(Some((tcp_stream, addr)));
         }
@@ -175,12 +171,11 @@ impl Agent {
             .send((addr, result_sender))
             .expect("send connect cmd fail");
 
-        if let Ok(mut tcp_stream) = result_receive.recv().expect("receive connect result") {
+        if let Ok(tcp_stream) = result_receive.recv().expect("receive connect result") {
             log::trace!("start to wait connect success ");
-            tcp_stream.wait_connect_success().expect("wait success");
+            // let waiter = self.connect_success.get(&tcp_stream.as_raw_fd()).unwrap();
+            // waiter.recv().expect("wait success");
 
-            tcp_stream.set_read_agent(Mutex::new(self.read_agent.clone()));
-            tcp_stream.set_write_agent(Mutex::new(self.write_agent.clone()));
             return Ok(tcp_stream);
         }
 
@@ -197,18 +192,18 @@ impl Agent {
             .send((addr, result_sender))
             .expect("send connect cmd fail");
 
-        if let Ok(mut tcp_stream) = result_receive.recv().expect("recv connect result")
+        if let Ok(tcp_stream) = result_receive.recv().expect("recv connect result")
         // .expect("receive connect result")
         {
-            log::trace!("start to wait connect success ");
-            if let Err(crate::error::Error::Timeout(err)) =
-                tcp_stream.wait_connect_success_timeout(timeout)
-            {
-                return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, err));
-            }
+            // let waiter = self.connect_success.get(&tcp_stream.as_raw_fd()).unwrap();
+            // log::trace!("start to wait connect success ");
+            // if let Err(e) = waiter.recv_timeout(timeout) {
+            //     return Err(std::io::Error::new(
+            //         std::io::ErrorKind::TimedOut,
+            //         e.to_string(),
+            //     ));
+            // }
 
-            tcp_stream.set_read_agent(Mutex::new(self.read_agent.clone()));
-            tcp_stream.set_write_agent(Mutex::new(self.write_agent.clone()));
             return Ok(tcp_stream);
         } else {
             return Err(std::io::Error::new(
@@ -342,11 +337,11 @@ impl Registry {
 
                     self.conn.insert(fd, socket.clone());
 
-                    let (connect_sender, receiver) = std::sync::mpsc::channel();
+                    // let (connect_sender, receiver) = std::sync::mpsc::channel();
 
-                    let stream = TcpStream::new(fd, Mutex::new(receiver), socket);
+                    let stream = TcpStream::new(fd, socket);
 
-                    self.connect_wait.insert(fd, connect_sender);
+                    // self.connect_wait.insert(fd, connect_sender);
 
                     sender.send(Ok(stream)).expect("send connect result fail");
 
@@ -405,9 +400,9 @@ impl Registry {
                 let socket = Arc::new(std::sync::RwLock::new(crate::net::Socket::from(client_fd)));
                 self.conn.insert(client_fd, socket.clone());
                 self.conn_belong_listener.insert(client_fd, listen_fd);
-                let (connect_sender, receiver) = std::sync::mpsc::channel();
-                let stream = TcpStream::new(client_fd, Mutex::new(receiver), socket);
-                connect_sender.send(true).expect("send conn result");
+                // let (connect_sender, receiver) = std::sync::mpsc::channel();
+                let stream = TcpStream::new(client_fd, socket);
+                // connect_sender.send(true).expect("send conn result");
                 c.send(Some((
                     stream,
                     crate::net::to_socket_addr(
@@ -607,10 +602,10 @@ unsafe extern "C" fn dpdk_loop(arg: *mut c_void) -> i32 {
                     conn.write()
                         .expect("process out event conn read lock double")
                         .set_can_write(true);
-                    if let Some(sender) = (*arg).connect_wait.get(&fd) {
-                        sender.send(true).expect("send conn result");
-                        (*arg).connect_wait.remove(&fd);
-                    }
+                    // if let Some(sender) = (*arg).connect_wait.get(&fd) {
+                    //     sender.send(true).expect("send conn result");
+                    //     (*arg).connect_wait.remove(&fd);
+                    // }
                 } else {
                     log::trace!("can write not include conn");
                 }
@@ -618,10 +613,10 @@ unsafe extern "C" fn dpdk_loop(arg: *mut c_void) -> i32 {
                 log::trace!("epoll wait get hup :{}", fd);
 
                 (*arg).conn.remove(&fd);
-                if let Some(sender) = (*arg).connect_wait.get(&fd) {
-                    sender.send(false).expect("send conn result");
-                    (*arg).connect_wait.remove(&fd);
-                }
+                // if let Some(sender) = (*arg).connect_wait.get(&fd) {
+                //     sender.send(false).expect("send conn result");
+                //     (*arg).connect_wait.remove(&fd);
+                // }
             }
         }
     }
@@ -636,6 +631,7 @@ pub fn bootstrap() {
     let (write_sender, write_receiver) = std::sync::mpsc::channel();
     let (accept_sender, accept_receiver) = std::sync::mpsc::channel();
     let agent = Agent {
+        connect_success: std::collections::BTreeMap::new(),
         listen_sender,
         connect_sender,
         read_agent: ReadAgent {
@@ -644,15 +640,7 @@ pub fn bootstrap() {
         write_agent: WriteAgent {
             write_sender: WriteSender(write_sender.clone()),
         },
-        accept_agent: AcceptAgent {
-            accept_sender,
-            write_agent: WriteAgent {
-                write_sender: WriteSender(write_sender),
-            },
-            read_agent: ReadAgent {
-                read_sender: ReadSender(read_sender),
-            },
-        },
+        accept_agent: AcceptAgent { accept_sender },
     };
 
     unsafe { AGENT = Some(Arc::new(agent)) }

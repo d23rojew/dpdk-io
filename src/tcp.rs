@@ -1,3 +1,4 @@
+use crate::dpdk_agent;
 use crate::net::Socket;
 use pin_project_lite::pin_project;
 use std::future::Future;
@@ -13,9 +14,7 @@ use tokio::io::ReadBuf;
 
 pub struct TcpStream {
     fd: i32,
-    read_agent: Option<Mutex<crate::service::ReadAgent>>,
-    write_agent: Option<Mutex<crate::service::WriteAgent>>,
-    connect_success: Mutex<std::sync::mpsc::Receiver<bool>>,
+
     inner: Arc<std::sync::RwLock<Socket>>,
 }
 
@@ -59,18 +58,8 @@ impl TcpListener {
 }
 
 impl TcpStream {
-    pub fn new(
-        fd: RawFd,
-        wait_success: Mutex<std::sync::mpsc::Receiver<bool>>,
-        inner: Arc<std::sync::RwLock<Socket>>,
-    ) -> Self {
-        Self {
-            read_agent: None,
-            write_agent: None,
-            fd,
-            connect_success: wait_success,
-            inner,
-        }
+    pub fn new(fd: RawFd, inner: Arc<std::sync::RwLock<Socket>>) -> Self {
+        Self { fd, inner }
     }
     pub fn as_raw_fd(&self) -> RawFd {
         return self.fd;
@@ -103,34 +92,6 @@ impl TcpStream {
             .expect("TcpStream read inner can_read")
             .can_read()
     }
-
-    pub fn set_read_agent(&mut self, agent: Mutex<crate::service::ReadAgent>) {
-        self.read_agent = Some(agent);
-    }
-
-    pub fn set_write_agent(&mut self, agent: Mutex<crate::service::WriteAgent>) {
-        self.write_agent = Some(agent);
-    }
-
-    pub fn wait_connect_success(&self) -> Result<(), crate::error::Error> {
-        self.connect_success
-            .lock()
-            .unwrap()
-            .recv()
-            .expect("Wait connect success");
-        Ok(())
-    }
-
-    pub fn wait_connect_success_timeout(
-        &self,
-        timeout: std::time::Duration,
-    ) -> Result<(), crate::error::Error> {
-        if let Err(err) = self.connect_success.lock().unwrap().recv_timeout(timeout) {
-            return Err(crate::error::Error::Timeout(err.to_string()));
-        }
-
-        Ok(())
-    }
 }
 
 impl tokio::io::AsyncRead for TcpStream {
@@ -145,33 +106,27 @@ impl tokio::io::AsyncRead for TcpStream {
             return Poll::Pending;
         }
         // log::trace!("tcp poll read");
-        if let Some(agent) = &self.read_agent {
-            let result = agent
-                .lock()
-                .expect("")
-                .read(&self, buf.initialize_unfilled());
-            match result {
-                Ok(len) => {
-                    buf.advance(len);
-                    // log::trace!("agent read = {}", String::from_utf8_lossy(buf.filled()));
-                    if len == 0 {
-                        return Poll::Pending;
-                    }
-                    return Poll::Ready(Ok(()));
+
+        let result = dpdk_agent().read(&self, buf.initialize_unfilled());
+        match result {
+            Ok(len) => {
+                buf.advance(len);
+                // log::trace!("agent read = {}", String::from_utf8_lossy(buf.filled()));
+                if len == 0 {
+                    return Poll::Pending;
                 }
-                Err(err) => {
-                    // log::trace!("agent read  err = {:?}", err.raw_os_error());
-                    if err.raw_os_error().unwrap() == 11 {
-                        cx.waker().wake_by_ref();
-                        return Poll::Pending;
-                    } else {
-                        return Poll::Ready(Err(err));
-                    }
+                return Poll::Ready(Ok(()));
+            }
+            Err(err) => {
+                // log::trace!("agent read  err = {:?}", err.raw_os_error());
+                if err.raw_os_error().unwrap() == 11 {
+                    cx.waker().wake_by_ref();
+                    return Poll::Pending;
+                } else {
+                    return Poll::Ready(Err(err));
                 }
-            };
-        } else {
-            Poll::Ready(Ok(()))
-        }
+            }
+        };
     }
 }
 
@@ -186,14 +141,11 @@ impl tokio::io::AsyncWrite for TcpStream {
             cx.waker().wake_by_ref();
             return Poll::Pending;
         }
-        if let Some(agent) = &self.write_agent {
-            let result = agent.lock().expect("write").write(&self, buf);
-            match result {
-                Ok(len) => Poll::Ready(Ok(len)),
-                Err(err) => Poll::Ready(Err(err)),
-            }
-        } else {
-            Poll::Ready(Ok(0))
+
+        let result = dpdk_agent().write(&self, buf);
+        match result {
+            Ok(len) => Poll::Ready(Ok(len)),
+            Err(err) => Poll::Ready(Err(err)),
         }
     }
 
