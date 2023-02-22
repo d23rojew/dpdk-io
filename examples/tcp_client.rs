@@ -14,17 +14,17 @@ async fn main() {
     log::info!("r. fd = {}", r.as_raw_fd());
 
     log::info!("connect cmd send success");
-    let msg = b"GET /ping?ping_time=%ld HTTP/1.1\r\nHost: 172.31.10.131\r\nContent-Type: application/json\n\r\n";
-    log::info!("time to process test");
-    let n = r.write(msg).await.expect("need write success");
-    // let n = rt.write(&r, msg).expect("write ");
-    if n == 0 {
-        panic!("write fail")
-    }
-
-    println!("write success = {}", n);
 
     loop {
+        let msg = b"GET /ping?ping_time=%ld HTTP/1.1\r\nHost: 172.31.10.131\r\nContent-Type: application/json\n\r\n";
+        log::info!("time to process test");
+        let n = r.write(msg).await.expect("need write success");
+        // let n = rt.write(&r, msg).expect("write ");
+        if n == 0 {
+            panic!("write fail")
+        }
+        println!("write success = {}", n);
+
         let mut buf: [u8; 10] = [0; 10];
 
         if 0 == r.read(&mut buf).await.expect("need read success") {

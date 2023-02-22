@@ -534,7 +534,7 @@ impl Registry {
                         arg.0,
                         arg.1.as_ptr() as *const libc::c_void,
                         arg.2 as u64,
-                        libc::MSG_WAITALL,
+                        libc::MSG_NOSIGNAL,
                     );
                     log::trace!("send message done {}", send_len);
                     if send_len.is_negative() {
