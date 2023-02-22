@@ -25,7 +25,7 @@ async fn main() {
         }
         println!("write success = {}", n);
 
-        let mut buf: [u8; 10] = [0; 10];
+        let mut buf: [u8; 1024] = [0; 1024];
 
         if 0 == r.read(&mut buf).await.expect("need read success") {
             break;

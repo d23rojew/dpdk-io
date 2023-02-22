@@ -111,8 +111,9 @@ impl tokio::io::AsyncRead for TcpStream {
         match result {
             Ok(len) => {
                 buf.advance(len);
-                // log::trace!("agent read = {}", String::from_utf8_lossy(buf.filled()));
+                log::trace!("agent read = {}", String::from_utf8_lossy(buf.filled()));
                 if len == 0 {
+                    cx.waker().wake_by_ref();
                     return Poll::Pending;
                 }
                 return Poll::Ready(Ok(()));
