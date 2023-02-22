@@ -14,16 +14,20 @@ async fn main() {
     log::info!("r. fd = {}", r.as_raw_fd());
 
     log::info!("connect cmd send success");
+    let mut time_cost = vec![];
 
-    loop {
+    for _ in 0..100 {
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
         let msg = b"GET /ping?ping_time=%ld HTTP/1.1\r\nHost: 172.31.10.131\r\nContent-Type: application/json\n\r\n";
-        log::info!("time to process test");
+        // log::info!("time to process test");
+        let start = std::time::Instant::now();
         let n = r.write(msg).await.expect("need write success");
         // let n = rt.write(&r, msg).expect("write ");
         if n == 0 {
             panic!("write fail")
         }
-        println!("write success = {}", n);
+        // println!("write success = {}", n);
 
         let mut buf: [u8; 1024] = [0; 1024];
 
@@ -31,11 +35,22 @@ async fn main() {
             break;
         }
 
-        println!(
-            "receive msg = {:?}",
-            String::from_utf8_lossy(buf.as_slice())
-        );
+        // println!(
+        //     "receive msg = {:?}",
+        //     String::from_utf8_lossy(buf.as_slice())
+        // );
+        let cost = start.elapsed();
+        time_cost.push(cost);
     }
 
-    // tokio::io::AsyncRead::
+    let mut sum = std::time::Duration::ZERO;
+
+    for (i, c) in time_cost.iter().enumerate() {
+        if i == 0 {
+            continue;
+        }
+        sum += *c;
+    }
+
+    println!("ave cost = {:?}", sum / 99);
 }
