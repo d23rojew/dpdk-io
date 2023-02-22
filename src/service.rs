@@ -14,7 +14,7 @@ use std::os::fd::RawFd;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-static mut AGENT: Option<Arc<Agent>> = None;
+static mut AGENT: Option<Agent> = None;
 static mut DPDK_ARG: Vec<String> = vec![];
 
 pub fn set_dpdk_arg(arg: Vec<String>) {
@@ -25,7 +25,7 @@ pub fn set_dpdk_arg(arg: Vec<String>) {
     }
 }
 
-pub fn dpdk_agent() -> Arc<Agent> {
+pub fn dpdk_agent() -> Agent {
     unsafe {
         if AGENT.is_none() {
             panic!("agent not init ")
@@ -642,7 +642,7 @@ pub fn bootstrap() {
         accept_agent: AcceptAgent { accept_sender },
     };
 
-    unsafe { AGENT = Some(Arc::new(agent)) }
+    unsafe { AGENT = Some(agent) }
 
     let (wait_prepare_done_sender, wait_prepare_done_receiver) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
