@@ -94,6 +94,49 @@ impl TcpStream {
     }
 }
 
+impl std::io::Read for TcpStream {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        loop {
+            if self.can_read() {
+                break;
+            }
+        }
+        loop {
+            match dpdk_agent().read(&self, buf) {
+                Ok(n) => {
+                    if n ==0 {
+                        continue;
+                    }else{
+                        return Ok(n);
+                    }
+                },
+                Err(err) => {
+                    if err.raw_os_error().unwrap() == 11 {
+                        continue;
+                    } else {
+                        return Err(err);
+                    }
+                }
+            };
+        }
+    }
+}
+
+impl std::io::Write for TcpStream {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        loop {
+            if self.can_write() {
+                break;
+            }
+        }
+        dpdk_agent().write(&self, buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
 impl tokio::io::AsyncRead for TcpStream {
     fn poll_read(
         self: Pin<&mut Self>,

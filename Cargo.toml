@@ -23,22 +23,34 @@ pkg-config = "0.3.26"
 
 tokio = {version = "1.25.0", features = ["full"]}
 
-[[example]]
-name = "async_sync"
-path = "examples/async_sync.rs"
+# [[example]]
+# name = "async_sync"
+# path = "examples/async_sync.rs"
 
-[[example]]
-name = "tokio_sleep"
-path = "examples/tokio_sleep.rs"
+# [[example]]
+# name = "tokio_sleep"
+# path = "examples/tokio_sleep.rs"
 
-[[example]]
-name = "tokio_loop"
-path = "examples/tokio_loop.rs"
+# [[example]]
+# name = "tokio_loop"
+# path = "examples/tokio_loop.rs"
+
+# [[bin]]
+# name = "tcp_server"
+# path = "examples/tcp_server.rs"
+
+# [[bin]]
+# name = "tcp_client"
+# path = "examples/tcp_client.rs"
+
+# [[bin]]
+# name = "tokio_tcp_client"
+# path = "examples/tokio_tcp_client.rs"
+
+# [[bin]]
+# name = "std_tcp_client"
+# path = "examples/std_tcp_client.rs"
 
 [[bin]]
-name = "tcp_server"
-path = "examples/tcp_server.rs"
-
-[[bin]]
-name = "tcp_client"
-path = "examples/tcp_client.rs"
+name = "dpdk_block"
+path = "examples/dpdk_block.rs"

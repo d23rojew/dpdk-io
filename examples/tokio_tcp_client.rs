@@ -1,18 +1,14 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
-use dpdk_io::dpdk_agent;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 5)]
 async fn main() {
     env_logger::init();
     let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(172, 31, 10, 131)), 80);
-    dpdk_io::service::bootstrap();
     tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-    let mut r = dpdk_agent().connect(addr).expect("connect fail");
-
-    log::info!("r. fd = {}", r.as_raw_fd());
-
+    let mut r = tokio::net::TcpStream::connect(addr).await.unwrap();
+    r.set_nodelay(true).unwrap();
     log::info!("connect cmd send success");
     let mut time_cost = vec![];
 

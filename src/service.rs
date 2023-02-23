@@ -297,6 +297,22 @@ impl Registry {
                     let on = 1;
                     unsafe { crate::fstack::ff_ioctl(fd, libc::FIONBIO, &on) };
 
+                    // crate::fstack::ff_setsockopt(
+                    //     fd,
+                    //     libc::SOL_SOCKET,
+                    //     libc::SO_KEEPALIVE,
+                    //     &on as *const i32 as *const c_void,
+                    //     4,
+                    // );
+
+                    // crate::fstack::ff_setsockopt(
+                    //     fd,
+                    //     libc::IPPROTO_TCP,
+                    //     libc::TCP_NODELAY,
+                    //     &on as *const i32 as *const c_void,
+                    //     4,
+                    // );
+
                     let mut ev = epoll_event {
                         events: EPOLLOUT as u32 | EPOLLIN as u32 | EPOLLET as u32,
                         data: epoll_data { fd },
