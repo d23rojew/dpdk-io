@@ -13,7 +13,7 @@ use tokio::io::ReadBuf;
 
 pub struct TcpStream {
     fd: i32,
-
+    start: Option<std::time::Instant>,
     inner: Arc<std::sync::RwLock<Socket>>,
 }
 
@@ -58,7 +58,11 @@ impl TcpListener {
 
 impl TcpStream {
     pub fn new(fd: RawFd, inner: Arc<std::sync::RwLock<Socket>>) -> Self {
-        Self { fd, inner }
+        Self {
+            fd,
+            inner,
+            start: None,
+        }
     }
     pub fn as_raw_fd(&self) -> RawFd {
         return self.fd;
@@ -138,15 +142,20 @@ impl std::io::Write for TcpStream {
 
 impl tokio::io::AsyncRead for TcpStream {
     fn poll_read(
-        self: Pin<&mut Self>,
+        mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
         // log::trace!("tcp poll try read");
+        if self.start.is_none() {
+            self.as_mut().start = Some(std::time::Instant::now());
+        }
+
         if self.can_read() == false {
             cx.waker().wake_by_ref();
             return Poll::Pending;
         }
+
         // log::trace!("tcp poll read");
 
         let result = dpdk_agent().read(&self, buf.initialize_unfilled());
@@ -158,6 +167,8 @@ impl tokio::io::AsyncRead for TcpStream {
                     cx.waker().wake_by_ref();
                     return Poll::Pending;
                 }
+                log::warn!("read cost = {:?}", self.start.unwrap().elapsed());
+                self.as_mut().start = None;
                 return Poll::Ready(Ok(()));
             }
             Err(err) => {
@@ -166,6 +177,7 @@ impl tokio::io::AsyncRead for TcpStream {
                     cx.waker().wake_by_ref();
                     return Poll::Pending;
                 } else {
+                    self.as_mut().start = None;
                     return Poll::Ready(Err(err));
                 }
             }
@@ -175,10 +187,13 @@ impl tokio::io::AsyncRead for TcpStream {
 
 impl tokio::io::AsyncWrite for TcpStream {
     fn poll_write(
-        self: Pin<&mut Self>,
+        mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<Result<usize, io::Error>> {
+        if self.start.is_none() {
+            self.as_mut().start = Some(std::time::Instant::now());
+        }
         // log::trace!("tcp poll write");
         if self.can_write() == false {
             cx.waker().wake_by_ref();
@@ -187,8 +202,15 @@ impl tokio::io::AsyncWrite for TcpStream {
 
         let result = dpdk_agent().write(&self, buf);
         match result {
-            Ok(len) => Poll::Ready(Ok(len)),
-            Err(err) => Poll::Ready(Err(err)),
+            Ok(len) => {
+                log::warn!("read cost = {:?}", self.start.unwrap().elapsed());
+                self.as_mut().start = None;
+                Poll::Ready(Ok(len))
+            }
+            Err(err) => {
+                self.as_mut().start = None;
+                Poll::Ready(Err(err))
+            }
         }
     }
 
