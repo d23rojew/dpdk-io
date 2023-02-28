@@ -10,11 +10,11 @@ async fn main() {
 
     dpdk_io::service::bootstrap();
 
-    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+    // tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
     let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(172, 31, 10, 131)), 80);
 
-    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+    // tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
     let mut r = dpdk_agent().connect(addr).expect("connect fail");
 

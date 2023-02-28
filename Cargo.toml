@@ -39,9 +39,9 @@ tokio = {version = "1.25.0", features = ["full"]}
 # name = "tcp_server"
 # path = "examples/tcp_server.rs"
 
-# [[bin]]
-# name = "tcp_client"
-# path = "examples/tcp_client.rs"
+[[bin]]
+name = "tcp_client"
+path = "examples/tcp_client.rs"
 
 # [[bin]]
 # name = "tokio_tcp_client"
@@ -51,6 +51,6 @@ tokio = {version = "1.25.0", features = ["full"]}
 # name = "std_tcp_client"
 # path = "examples/std_tcp_client.rs"
 
-[[bin]]
-name = "dpdk_block"
-path = "examples/dpdk_block.rs"
+# [[bin]]
+# name = "dpdk_block"
+# path = "examples/dpdk_block.rs"

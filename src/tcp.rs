@@ -8,7 +8,6 @@ use std::os::fd::AsRawFd;
 use std::os::fd::RawFd;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::task::{Context, Poll};
 use tokio::io::ReadBuf;
 
@@ -104,12 +103,12 @@ impl std::io::Read for TcpStream {
         loop {
             match dpdk_agent().read(&self, buf) {
                 Ok(n) => {
-                    if n ==0 {
+                    if n == 0 {
                         continue;
-                    }else{
+                    } else {
                         return Ok(n);
                     }
-                },
+                }
                 Err(err) => {
                     if err.raw_os_error().unwrap() == 11 {
                         continue;

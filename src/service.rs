@@ -515,7 +515,7 @@ impl Registry {
                         arg.0,
                         arg.1.as_mut_ptr() as *mut libc::c_void,
                         arg.2 as u64,
-                        libc::MSG_WAITALL,
+                        0,
                     );
                     log::trace!("read fd:{} len is {}", arg.0, read_len);
                     if read_len == -1 {

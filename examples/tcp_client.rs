@@ -43,6 +43,8 @@ async fn main() {
         time_cost.push(cost);
     }
 
+    println!("{:#?}", time_cost);
+
     let mut sum = std::time::Duration::ZERO;
 
     for (i, c) in time_cost.iter().enumerate() {
